@@ -1,3 +1,5 @@
+/*** includes ***/
+
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
@@ -5,8 +7,11 @@
 #include <termios.h>
 #include <unistd.h>
 
+/*** variables ***/
 
 struct termios origTermios;
+
+/*** terminal ***/
 
 void die(const char* s) {
     perror(s);
@@ -40,6 +45,8 @@ void enableRawMode() {
         die("tcsetattr error");
     }   
 }
+
+/*** init ***/
 
 int main() {
 
