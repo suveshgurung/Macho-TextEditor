@@ -255,6 +255,30 @@ void moveEditorCursor(char key) {
             }
             E.cy++;
             break;
+        case 'h':
+            if (E.cx <= 0) {
+                break;
+            }
+            E.cx--;
+            break;
+        case 'l':
+            if (E.cx >= E.screenColumns) {
+                break;
+            }
+            E.cx++;
+            break;
+        case 'k':
+            if (E.cy <= 0) {
+                break;
+            }
+            E.cy--;
+            break;
+        case 'j':
+            if (E.cy >= E.screenRows) {
+                break;
+            }
+            E.cy++;
+            break;
     }
 }
 
@@ -272,6 +296,10 @@ void processEditorKeypress() {
         case 's':
         case 'a':
         case 'd':
+        case 'j':
+        case 'k':
+        case 'l':
+        case 'h':
             moveEditorCursor(c);
             break;
     }
