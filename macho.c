@@ -158,6 +158,16 @@ void drawEditorRows(struct abuf *ab) {
                 welcomeLen = E.screenColumns;
             }
 
+            int padding = (E.screenColumns - welcomeLen) / 2;
+            if (padding) {
+                abAppend(ab, "~", 1);
+                padding--;
+            }
+
+            while(padding--) {
+                abAppend(ab, " ", 1);
+            }
+
             abAppend(ab, welcome, welcomeLen);
         } else {
             abAppend(ab, "~", 1);
