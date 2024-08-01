@@ -10,6 +10,7 @@
 
 /*** defines ***/
 
+#define MACHO_VERSION "0.0.1"
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 /*** variables ***/
@@ -148,10 +149,22 @@ void drawEditorRows(struct abuf *ab) {
     int y;
 
     for (y = 0; y < E.screenRows; y++) {
-        abAppend(ab, "~", 1);
 
+        if (y == E.screenRows / 3) {
+            char welcome[80];
+            int welcomeLen = snprintf(welcome, sizeof(welcome), "Macho Editor -- version %s", MACHO_VERSION);
+
+            if (welcomeLen > E.screenColumns) {
+                welcomeLen = E.screenColumns;
+            }
+
+            abAppend(ab, welcome, welcomeLen);
+        } else {
+            abAppend(ab, "~", 1);
+        }
+
+        abAppend(ab, "\x1b[K", 3);
         if (y < E.screenRows - 1) {
-            write(STDOUT_FILENO, "\r\n", 2);
             abAppend(ab, "\r\n", 2);
         }
     }
@@ -160,12 +173,13 @@ void drawEditorRows(struct abuf *ab) {
 void refreshEditorScreen() {
     struct abuf ab = ABUF_INIT;
 
-    abAppend(&ab, "\x1b[2j", 4);
+    abAppend(&ab, "\x1b[?25l", 6);
     abAppend(&ab, "\x1b[H", 3);
 
     drawEditorRows(&ab);
 
     abAppend(&ab, "\x1b[H", 3);
+    abAppend(&ab, "\x1b[?25h", 6);
 
     write(STDOUT_FILENO, ab.b, ab.length);
 
