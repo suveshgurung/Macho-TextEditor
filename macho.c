@@ -73,7 +73,33 @@ char readEditorKey() {
         }
     }
 
-    return c;
+    if (c == '\x1b') {
+        char seq[3];
+
+        if (read(STDIN_FILENO, &seq[0], 1) != 1) {
+            return '\x1b';
+        }
+        if (read(STDIN_FILENO, &seq[1], 1) != 1) {
+            return '\x1b';
+        }
+
+        if (seq[0] == '[') {
+            switch (seq[1]) {
+                case 'A':
+                    return 'w';
+                case 'B':
+                    return 's';
+                case 'C':
+                    return 'd';
+                case 'D':
+                    return 'a';
+            }
+        }
+
+        return '\x1b';
+    } else {
+        return c;
+    }
 }
 
 int getCursorPosition(int *rows, int *cols) {
@@ -203,6 +229,35 @@ void refreshEditorScreen() {
 
 /*** input ***/
 
+void moveEditorCursor(char key) {
+    switch (key) {
+        case 'a':
+            if (E.cx <= 0) {
+                break;
+            }
+            E.cx--;
+            break;
+        case 'd':
+            if (E.cx >= E.screenColumns) {
+                break;
+            }
+            E.cx++;
+            break;
+        case 'w':
+            if (E.cy <= 0) {
+                break;
+            }
+            E.cy--;
+            break;
+        case 's':
+            if (E.cy >= E.screenRows) {
+                break;
+            }
+            E.cy++;
+            break;
+    }
+}
+
 void processEditorKeypress() {
     char c = readEditorKey();
 
@@ -211,6 +266,13 @@ void processEditorKeypress() {
             write(STDOUT_FILENO, "\x1b[2J", 4);
             write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
+            break;
+
+        case 'w':
+        case 's':
+        case 'a':
+        case 'd':
+            moveEditorCursor(c);
             break;
     }
 }
