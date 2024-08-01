@@ -13,6 +13,20 @@
 #define MACHO_VERSION "0.0.1"
 #define CTRL_KEY(k) ((k) & 0x1f)
 
+enum editorKey {
+    ARROW_LEFT = 'a',
+    ARROW_RIGHT = 'd',
+    ARROW_UP = 'w',
+    ARROW_DOWN = 's',
+};
+
+enum editorKeyV {
+    ARROW_LEFTV = 'h',
+    ARROW_RIGHTV = 'l',
+    ARROW_UPV = 'k',
+    ARROW_DOWNV = 'j',
+};
+
 /*** variables ***/
 
 struct editorConfig {
@@ -86,13 +100,13 @@ char readEditorKey() {
         if (seq[0] == '[') {
             switch (seq[1]) {
                 case 'A':
-                    return 'w';
+                    return ARROW_UP;
                 case 'B':
-                    return 's';
+                    return ARROW_DOWN;
                 case 'C':
-                    return 'd';
+                    return ARROW_RIGHT;
                 case 'D':
-                    return 'a';
+                    return ARROW_LEFT;
             }
         }
 
@@ -231,49 +245,49 @@ void refreshEditorScreen() {
 
 void moveEditorCursor(char key) {
     switch (key) {
-        case 'a':
+        case ARROW_LEFT:
             if (E.cx <= 0) {
                 break;
             }
             E.cx--;
             break;
-        case 'd':
+        case ARROW_RIGHT:
             if (E.cx >= E.screenColumns) {
                 break;
             }
             E.cx++;
             break;
-        case 'w':
+        case ARROW_UP:
             if (E.cy <= 0) {
                 break;
             }
             E.cy--;
             break;
-        case 's':
+        case ARROW_DOWN:
             if (E.cy >= E.screenRows) {
                 break;
             }
             E.cy++;
             break;
-        case 'h':
+        case ARROW_LEFTV:
             if (E.cx <= 0) {
                 break;
             }
             E.cx--;
             break;
-        case 'l':
+        case ARROW_RIGHTV:
             if (E.cx >= E.screenColumns) {
                 break;
             }
             E.cx++;
             break;
-        case 'k':
+        case ARROW_UPV:
             if (E.cy <= 0) {
                 break;
             }
             E.cy--;
             break;
-        case 'j':
+        case ARROW_DOWNV:
             if (E.cy >= E.screenRows) {
                 break;
             }
