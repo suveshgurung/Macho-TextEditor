@@ -306,14 +306,14 @@ void processEditorKeypress() {
             exit(0);
             break;
 
-        case 'w':
-        case 's':
-        case 'a':
-        case 'd':
-        case 'j':
-        case 'k':
-        case 'l':
-        case 'h':
+        case ARROW_UP:
+        case ARROW_DOWN:
+        case ARROW_LEFT:
+        case ARROW_RIGHT:
+        case ARROW_UPV:
+        case ARROW_DOWNV:
+        case ARROW_RIGHTV:
+        case ARROW_LEFTV:
             moveEditorCursor(c);
             break;
     }
