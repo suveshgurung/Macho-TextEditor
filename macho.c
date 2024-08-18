@@ -14,6 +14,10 @@
 
 /*** includes ***/
 
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -227,17 +231,18 @@ void openEditor(char *fileName) {
     }
 
     char *line = NULL;
-    size_t lineCap = 0;
+    size_t lineCapacity = 0;
     ssize_t lineLen;
 
-    lineLen = getline(&line, &lineCap, fp);
+    lineLen = getline(&line, &lineCapacity, fp);
+
     if (lineLen != -1) {
         while (lineLen > 0 && (line[lineLen - 1] == '\n' || line[lineLen - 1] == '\r')) {
             lineLen--; 
         }
 
         E.row.size = lineLen;
-        E.row.chars = malloc(lineLen + 1);
+        E.row.chars = (char *)malloc(lineLen + 1);
         memcpy(E.row.chars, line, lineLen);
         E.row.chars[lineLen] = '\0';
         E.numRows = 1;
@@ -280,7 +285,7 @@ void drawEditorRows(struct abuf *ab) {
     for (y = 0; y < E.screenRows; y++) {
 
         if (y >= E.numRows) {
-            if (y == E.screenRows / 3) {
+            if (E.numRows == 0 && y == E.screenRows / 3) {
                 char welcome[80];
                 int welcomeLen = snprintf(welcome, sizeof(welcome), "Macho Editor -- version %s", MACHO_VERSION);
 
