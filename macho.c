@@ -53,11 +53,11 @@ typedef struct editorRow {
 struct editorConfig {
     int cx;     // cursor x position
     int cy;     // cursor y position
-    int screenRows;
-    int screenColumns;
-    int numRows;
-    editorRow row;
-    struct termios origTermios;
+    int screenRows;     // terminal's number of rows.
+    int screenColumns;  // terminal's number of columns.
+    int numRows;        // number of rows of the text to be written.
+    editorRow row;      // stores the text and the size of the text of each line.
+    struct termios origTermios;     // struct to store the default (initial) config of the terminal.
 };
 
 struct editorConfig E;
@@ -220,15 +220,31 @@ int getWindowSize(int *rows, int *cols) {
 
 /*** file i/o ***/
 
-void openEditor() {
-    char *line = "Hello, World!!!";
-    ssize_t lineLen = 15;
+void openEditor(char *fileName) {
+    FILE *fp = fopen(fileName, "r");
+    if (!fp) {
+        die("file open error");
+    }
 
-    E.row.size = lineLen;
-    E.row.chars = malloc(lineLen + 1);
-    memcpy(E.row.chars, line, lineLen);
-    E.row.chars[lineLen] = '\0';
-    E.numRows = 1;
+    char *line = NULL;
+    size_t lineCap = 0;
+    ssize_t lineLen;
+
+    lineLen = getline(&line, &lineCap, fp);
+    if (lineLen != -1) {
+        while (lineLen > 0 && (line[lineLen - 1] == '\n' || line[lineLen - 1] == '\r')) {
+            lineLen--; 
+        }
+
+        E.row.size = lineLen;
+        E.row.chars = malloc(lineLen + 1);
+        memcpy(E.row.chars, line, lineLen);
+        E.row.chars[lineLen] = '\0';
+        E.numRows = 1;
+    }
+
+    free(line);
+    fclose(fp);
 }
 
 /*** append buffer ***/
@@ -384,10 +400,6 @@ void processEditorKeypress() {
         case ARROW_DOWN:
         case ARROW_LEFT:
         case ARROW_RIGHT:
-        case ARROW_UPV:
-        case ARROW_DOWNV:
-        case ARROW_RIGHTV:
-        case ARROW_LEFTV:
             moveEditorCursor(c);
             break;
     }
@@ -405,11 +417,14 @@ void initEditor() {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
 
     enableRawMode();
     initEditor();
-    openEditor();
+
+    if (argc >= 2) {
+        openEditor(argv[1]);
+    }
 
     while (1) {
         refreshEditorScreen();
