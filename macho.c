@@ -1,3 +1,17 @@
+/* DEFINIION OF THE ESCAPE SEQUENCES.
+ *
+ * \x1b -> escape character.
+ * \x1b[2J -> used to clear the entire screen.
+ * \x1b[H -> move the cursor to the home position.
+ * \x1b[6n -> query the terminal for the current cursor position.
+ * \x1b[999C -> moves the cursor 999 columns to the right.
+ * \x1b[999B -> moves the cursor 999 lines down.
+ * \x1b[K -> clears the line from the cursor to the end of the line.
+ * \x1b[?25l -> hide the cursor in the terminal.
+ * \x1b[?25h -> show the cursor in the terminal.
+ *
+ */
+
 /*** includes ***/
 
 #include <stdio.h>
@@ -5,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -13,6 +28,7 @@
 #define MACHO_VERSION "0.0.1"
 #define CTRL_KEY(k) ((k) & 0x1f)
 
+// constants definition of editor keys.
 enum editorKey {
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
@@ -25,20 +41,22 @@ enum editorKey {
     PAGE_DOWN
 };
 
-enum editorKeyV {
-    ARROW_LEFTV = 'h',
-    ARROW_RIGHTV = 'l',
-    ARROW_UPV = 'k',
-    ARROW_DOWNV = 'j',
-};
-
 /*** variables ***/
 
+// structure to store the editor text.
+typedef struct editorRow {
+    int size;
+    char *chars;
+} editorRow;
+
+// structure for the editor's configuration.
 struct editorConfig {
     int cx;     // cursor x position
     int cy;     // cursor y position
     int screenRows;
     int screenColumns;
+    int numRows;
+    editorRow row;
     struct termios origTermios;
 };
 
@@ -175,7 +193,7 @@ int getCursorPosition(int *rows, int *cols) {
     }
     buffer[i] = '\0';
 
-    if (buffer[0] != '\x1b' ||buffer[1] != '[') {
+    if (buffer[0] != '\x1b' || buffer[1] != '[') {
         return -1;
     }
     if (sscanf(&buffer[2], "%d;%d", rows, cols) != 2) {
@@ -198,6 +216,19 @@ int getWindowSize(int *rows, int *cols) {
         *rows = ws.ws_row;
         return 0;
     }
+}
+
+/*** file i/o ***/
+
+void openEditor() {
+    char *line = "Hello, World!!!";
+    ssize_t lineLen = 15;
+
+    E.row.size = lineLen;
+    E.row.chars = malloc(lineLen + 1);
+    memcpy(E.row.chars, line, lineLen);
+    E.row.chars[lineLen] = '\0';
+    E.numRows = 1;
 }
 
 /*** append buffer ***/
@@ -232,27 +263,36 @@ void drawEditorRows(struct abuf *ab) {
 
     for (y = 0; y < E.screenRows; y++) {
 
-        if (y == E.screenRows / 3) {
-            char welcome[80];
-            int welcomeLen = snprintf(welcome, sizeof(welcome), "Macho Editor -- version %s", MACHO_VERSION);
+        if (y >= E.numRows) {
+            if (y == E.screenRows / 3) {
+                char welcome[80];
+                int welcomeLen = snprintf(welcome, sizeof(welcome), "Macho Editor -- version %s", MACHO_VERSION);
 
-            if (welcomeLen > E.screenColumns) {
-                welcomeLen = E.screenColumns;
-            }
+                if (welcomeLen > E.screenColumns) {
+                    welcomeLen = E.screenColumns;
+                }
 
-            int padding = (E.screenColumns - welcomeLen) / 2;
-            if (padding) {
+                int padding = (E.screenColumns - welcomeLen) / 2;
+                if (padding) {
+                    abAppend(ab, "~", 1);
+                    padding--;
+                }
+
+                while(padding--) {
+                    abAppend(ab, " ", 1);
+                }
+
+                abAppend(ab, welcome, welcomeLen);
+            } else {
                 abAppend(ab, "~", 1);
-                padding--;
             }
-
-            while(padding--) {
-                abAppend(ab, " ", 1);
-            }
-
-            abAppend(ab, welcome, welcomeLen);
         } else {
-            abAppend(ab, "~", 1);
+            int len = E.row.size;
+            if (len > E.screenRows) {
+                len = E.screenColumns;
+            }
+
+            abAppend(ab, E.row.chars, len);
         }
 
         abAppend(ab, "\x1b[K", 3);
@@ -309,30 +349,6 @@ void moveEditorCursor(int key) {
             }
             E.cy++;
             break;
-        case ARROW_LEFTV:
-            if (E.cx <= 0) {
-                break;
-            }
-            E.cx--;
-            break;
-        case ARROW_RIGHTV:
-            if (E.cx >= E.screenColumns) {
-                break;
-            }
-            E.cx++;
-            break;
-        case ARROW_UPV:
-            if (E.cy <= 0) {
-                break;
-            }
-            E.cy--;
-            break;
-        case ARROW_DOWNV:
-            if (E.cy >= E.screenRows) {
-                break;
-            }
-            E.cy++;
-            break;
     }
 }
 
@@ -382,6 +398,7 @@ void processEditorKeypress() {
 void initEditor() {
     E.cx = 0;
     E.cy = 0;
+    E.numRows = 0;
 
     if (getWindowSize(&E.screenRows, &E.screenColumns) == -1) {
         die("getWindowSize error");
@@ -392,6 +409,7 @@ int main() {
 
     enableRawMode();
     initEditor();
+    openEditor();
 
     while (1) {
         refreshEditorScreen();
