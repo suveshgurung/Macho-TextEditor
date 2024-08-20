@@ -1,3 +1,5 @@
 macho
 *.o
 *.txt
+test
+test.c

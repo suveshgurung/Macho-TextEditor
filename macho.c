@@ -57,6 +57,7 @@ typedef struct editorRow {
 struct editorConfig {
     int cx;     // cursor x position
     int cy;     // cursor y position
+    int rowOffset;
     int screenRows;     // terminal's number of rows.
     int screenColumns;  // terminal's number of columns.
     int numRows;        // number of rows of the text to be written.
@@ -288,12 +289,22 @@ void abFree(struct abuf *ab) {
 
 /*** output ***/
 
+void scrollEditor() {
+    if (E.cy < E.rowOffset) {
+        E.rowOffset = E.cy;
+    }
+    if (E.cy >= E.rowOffset + E.screenRows) {
+        // E.rowOffset = E.cy - E.screenRows + 1;           yo kina gareko paxi herne. aaile bujena.
+        E.rowOffset = 1;
+    }
+}
+
 void drawEditorRows(struct abuf *ab) {
     int y;
 
     for (y = 0; y < E.screenRows; y++) {
-
-        if (y >= E.numRows) {
+        int fileRow = y + E.rowOffset;
+        if (fileRow >= E.numRows) {
             if (E.numRows == 0 && y == E.screenRows / 3) {
                 char welcome[80];
                 int welcomeLen = snprintf(welcome, sizeof(welcome), "Macho Editor -- version %s", MACHO_VERSION);
@@ -317,12 +328,12 @@ void drawEditorRows(struct abuf *ab) {
                 abAppend(ab, "~", 1);
             }
         } else {
-            int len = E.row[y].size;
+            int len = E.row[fileRow].size;
             if (len > E.screenRows) {
                 len = E.screenColumns;
             }
 
-            abAppend(ab, E.row[y].chars, len);
+            abAppend(ab, E.row[fileRow].chars, len);
         }
 
         abAppend(ab, "\x1b[K", 3);
@@ -333,6 +344,8 @@ void drawEditorRows(struct abuf *ab) {
 }
 
 void refreshEditorScreen() {
+    scrollEditor();
+
     struct abuf ab = ABUF_INIT;
 
     abAppend(&ab, "\x1b[?25l", 6);
@@ -356,28 +369,24 @@ void refreshEditorScreen() {
 void moveEditorCursor(int key) {
     switch (key) {
         case ARROW_LEFT:
-            if (E.cx <= 0) {
-                break;
+            if (E.cx != 0) {
+                E.cx--;
             }
-            E.cx--;
             break;
         case ARROW_RIGHT:
-            if (E.cx >= E.screenColumns) {
-                break;
+            if (E.cx != E.screenColumns - 1) {
+                E.cx++;
             }
-            E.cx++;
             break;
         case ARROW_UP:
-            if (E.cy <= 0) {
-                break;
+            if (E.cy != 0) {
+                E.cy--;
             }
-            E.cy--;
             break;
         case ARROW_DOWN:
-            if (E.cy >= E.screenRows) {
-                break;
+            if (E.cy < E.numRows) {
+                E.cy++;
             }
-            E.cy++;
             break;
     }
 }
@@ -424,6 +433,7 @@ void processEditorKeypress() {
 void initEditor() {
     E.cx = 0;
     E.cy = 0;
+    E.rowOffset = 0;
     E.numRows = 0;
     E.row = NULL;
 
