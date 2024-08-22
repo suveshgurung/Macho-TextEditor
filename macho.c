@@ -294,8 +294,7 @@ void scrollEditor() {
         E.rowOffset = E.cy;
     }
     if (E.cy >= E.rowOffset + E.screenRows) {
-        // E.rowOffset = E.cy - E.screenRows + 1;           yo kina gareko paxi herne. aaile bujena.
-        E.rowOffset = 1;
+        E.rowOffset = E.cy - E.screenRows + 1;
     }
 }
 
