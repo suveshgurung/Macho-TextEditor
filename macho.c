@@ -58,6 +58,7 @@ struct editorConfig {
     int cx;     // cursor x position
     int cy;     // cursor y position
     int rowOffset;
+    int colOffset;
     int screenRows;     // terminal's number of rows.
     int screenColumns;  // terminal's number of columns.
     int numRows;        // number of rows of the text to be written.
@@ -296,6 +297,12 @@ void scrollEditor() {
     if (E.cy >= E.rowOffset + E.screenRows) {
         E.rowOffset = E.cy - E.screenRows + 1;
     }
+    if (E.cx < E.colOffset) {
+        E.colOffset = E.cx;
+    }
+    if (E.cx >= E.colOffset + E.screenColumns) {
+        E.colOffset = E.cx - E.screenColumns + 1;
+    }
 }
 
 void drawEditorRows(struct abuf *ab) {
@@ -327,8 +334,11 @@ void drawEditorRows(struct abuf *ab) {
                 abAppend(ab, "~", 1);
             }
         } else {
-            int len = E.row[fileRow].size;
-            if (len > E.screenRows) {
+            int len = E.row[fileRow].size - E.colOffset;
+            if (len < 0) {
+                len = 0;
+            }
+            if (len > E.screenColumns) {
                 len = E.screenColumns;
             }
 
@@ -353,7 +363,7 @@ void refreshEditorScreen() {
     drawEditorRows(&ab);
 
     char buf[32];
-    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowOffset) + 1, E.cx + 1);
+    snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowOffset) + 1, (E.cx - E.colOffset) + 1);
     abAppend(&ab, buf, strlen(buf));
 
     abAppend(&ab, "\x1b[?25h", 6);
@@ -366,6 +376,9 @@ void refreshEditorScreen() {
 /*** input ***/
 
 void moveEditorCursor(int key) {
+
+    editorRow *row = (E.cy >= E.numRows) ? NULL : &E.row[E.cy];
+
     switch (key) {
         case ARROW_LEFT:
             if (E.cx != 0) {
@@ -373,7 +386,7 @@ void moveEditorCursor(int key) {
             }
             break;
         case ARROW_RIGHT:
-            if (E.cx != E.screenColumns - 1) {
+            if (row && E.cx < row->size) {
                 E.cx++;
             }
             break;
@@ -387,6 +400,12 @@ void moveEditorCursor(int key) {
                 E.cy++;
             }
             break;
+    }
+
+    row = (E.cy >= E.numRows) ? NULL : &E.row[E.cy];
+    int rowLen = row ? row->size : 0;
+    if (E.cx > rowLen) {
+        E.cx = rowLen;
     }
 }
 
@@ -433,6 +452,7 @@ void initEditor() {
     E.cx = 0;
     E.cy = 0;
     E.rowOffset = 0;
+    E.colOffset = 0;
     E.numRows = 0;
     E.row = NULL;
 
