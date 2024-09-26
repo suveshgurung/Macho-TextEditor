@@ -67,6 +67,7 @@ struct editorConfig {
     int screenColumns;  // terminal's number of columns.
     int numRows;        // number of rows of the text to be written.
     editorRow *row;      // stores the text and the size of the text of each line.
+    char *fileName;     // stores the name of the current open file.
     struct termios origTermios;     // struct to store the default (initial) config of the terminal.
 };
 
@@ -291,6 +292,12 @@ void appendEditorRow(char *s, size_t len) {
 /*** file i/o ***/
 
 void openEditor(char *fileName) {
+    free(E.fileName);
+    E.fileName = strdup(fileName);
+    if (E.fileName == NULL) {
+        die("strdup fileName");
+    }
+
     FILE *fp = fopen(fileName, "r");
     if (!fp) {
         die("file open error");
@@ -400,10 +407,25 @@ void drawEditorRows(struct abuf *ab) {
         }
 
         abAppend(ab, "\x1b[K", 3);
-        if (y < E.screenRows - 1) {
-            abAppend(ab, "\r\n", 2);
-        }
+        abAppend(ab, "\r\n", 2);
     }
+}
+
+void drawEditorStatusBar(struct abuf *ab) {
+    abAppend(ab, "\x1b[7m", 4);
+
+    char status[80];
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines", E.fileName ? E.fileName : "[No Name]", E.numRows);
+    if (len > E.screenColumns) {
+        len = E.screenColumns;
+    }
+    abAppend(ab, status, len);
+
+    while (len < E.screenColumns) {
+        abAppend(ab, " ", 1);
+        len++;
+    }
+    abAppend(ab, "\x1b[m", 3);
 }
 
 void refreshEditorScreen() {
@@ -415,6 +437,7 @@ void refreshEditorScreen() {
     abAppend(&ab, "\x1b[H", 3);
 
     drawEditorRows(&ab);
+    drawEditorStatusBar(&ab);
 
     char buf[32];
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowOffset) + 1, (E.rx - E.colOffset) + 1);
@@ -527,10 +550,12 @@ void initEditor() {
     E.colOffset = 0;
     E.numRows = 0;
     E.row = NULL;
+    E.fileName = NULL;
 
     if (getWindowSize(&E.screenRows, &E.screenColumns) == -1) {
         die("getWindowSize error");
     }
+    E.screenRows -= 1;
 }
 
 int main(int argc, char *argv[]) {
