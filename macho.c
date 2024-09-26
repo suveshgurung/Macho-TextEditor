@@ -21,10 +21,12 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 /*** defines ***/
@@ -68,6 +70,8 @@ struct editorConfig {
     int numRows;        // number of rows of the text to be written.
     editorRow *row;      // stores the text and the size of the text of each line.
     char *fileName;     // stores the name of the current open file.
+    char statusMsg[80];     //stores the status message.
+    time_t statusMsgTime;   //stores the time at which the status message was written.
     struct termios origTermios;     // struct to store the default (initial) config of the terminal.
 };
 
@@ -414,16 +418,37 @@ void drawEditorRows(struct abuf *ab) {
 void drawEditorStatusBar(struct abuf *ab) {
     abAppend(ab, "\x1b[7m", 4);
 
-    char status[80];
+    char status[80], rstatus[80];
     int len = snprintf(status, sizeof(status), "%.20s - %d lines", E.fileName ? E.fileName : "[No Name]", E.numRows);
+    int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", E.cy + 1, E.numRows);
     if (len > E.screenColumns) {
         len = E.screenColumns;
     }
     abAppend(ab, status, len);
 
     while (len < E.screenColumns) {
-        abAppend(ab, " ", 1);
-        len++;
+        if (E.screenColumns - len == rlen) {
+            abAppend(ab, rstatus, rlen);
+            break;
+        } else {
+            abAppend(ab, " ", 1);
+            len++;
+        }
+    }
+    abAppend(ab, "\x1b[m", 3);
+    abAppend(ab, "\r\n", 2);
+}
+
+void drawEditorMessageBox(struct abuf *ab) {
+    abAppend(ab, "\x1b[K", 3);
+    abAppend(ab, "\x1b[1m", 4);
+
+    int msgLen = strlen(E.statusMsg);
+    if (msgLen > E.screenColumns) {
+        msgLen = E.screenColumns;
+    }
+    if (msgLen && time(NULL) - E.statusMsgTime < 5) {
+        abAppend(ab, E.statusMsg, msgLen);
     }
     abAppend(ab, "\x1b[m", 3);
 }
@@ -438,6 +463,7 @@ void refreshEditorScreen() {
 
     drawEditorRows(&ab);
     drawEditorStatusBar(&ab);
+    drawEditorMessageBox(&ab);
 
     char buf[32];
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowOffset) + 1, (E.rx - E.colOffset) + 1);
@@ -448,6 +474,16 @@ void refreshEditorScreen() {
     write(STDOUT_FILENO, ab.b, ab.length);
 
     abFree(&ab);
+}
+
+void setEditorStatusMessage(const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+
+    vsnprintf(E.statusMsg, sizeof(E.statusMsg), fmt, ap);
+    va_end(ap);
+
+    E.statusMsgTime = time(NULL);
 }
 
 /*** input ***/
@@ -551,11 +587,13 @@ void initEditor() {
     E.numRows = 0;
     E.row = NULL;
     E.fileName = NULL;
+    E.statusMsg[0] = '\0';
+    E.statusMsgTime = 0;
 
     if (getWindowSize(&E.screenRows, &E.screenColumns) == -1) {
         die("getWindowSize error");
     }
-    E.screenRows -= 1;
+    E.screenRows -= 2;
 }
 
 int main(int argc, char *argv[]) {
@@ -566,6 +604,8 @@ int main(int argc, char *argv[]) {
     if (argc >= 2) {
         openEditor(argv[1]);
     }
+
+    setEditorStatusMessage("HELP: Ctrl-Q = quit");
 
     while (1) {
         refreshEditorScreen();
