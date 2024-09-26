@@ -484,7 +484,9 @@ void processEditorKeypress() {
             break;
 
         case END_KEY:
-            E.cx = E.screenColumns;
+            if (E.cy < E.numRows) {
+                E.cx = E.row[E.cy].size;
+            }
             break;
 
         case PAGE_UP:
