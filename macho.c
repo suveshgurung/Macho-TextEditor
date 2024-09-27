@@ -293,6 +293,34 @@ void appendEditorRow(char *s, size_t len) {
     E.numRows++;
 }
 
+void insertEditorRowCharacter(editorRow *row, int at, int c) {
+    if (at < 0 || at > row->size) {
+        at = row->size;
+    }
+
+    row->chars = (char *)realloc(row->chars, row->size + 2);
+    if (row->chars == NULL) {
+        die("realloc");
+    }
+
+    memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
+    row->size++;
+    row->chars[at] = c;
+
+    updateEditorRow(row);
+}
+
+/*** editor operations ***/
+
+void insertEditorChar(int c) {
+    if (E.cy == E.numRows) {
+        appendEditorRow("", 0);
+    }
+
+    insertEditorRowCharacter(&E.row[E.cy], E.cx, c);
+    E.cx++;
+}
+
 /*** file i/o ***/
 
 void openEditor(char *fileName) {
@@ -572,6 +600,10 @@ void processEditorKeypress() {
         case ARROW_LEFT:
         case ARROW_RIGHT:
             moveEditorCursor(c);
+            break;
+
+        default:
+            insertEditorChar(c);
             break;
     }
 }
