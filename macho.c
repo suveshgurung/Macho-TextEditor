@@ -18,8 +18,9 @@
 #define _BSD_SOURCE
 #define _GNU_SOURCE
 
-#include <stdio.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
@@ -37,6 +38,7 @@
 
 // constants definition of editor keys.
 enum editorKey {
+    BACKSPACE = 127,
     ARROW_LEFT = 1000,
     ARROW_RIGHT,
     ARROW_UP,
@@ -323,6 +325,27 @@ void insertEditorChar(int c) {
 
 /*** file i/o ***/
 
+char *editorRowsToString(int *bufLen) {
+    int totalLen = 0;
+    int j;
+
+    for (j = 0; j < E.numRows; j++) {
+        totalLen += E.row[j].size + 1;
+    }
+    *bufLen = totalLen;
+
+    char *buf = (char *)malloc(totalLen);
+    char *p = buf;
+    for (j = 0; j < E.numRows; j++) {
+        memcpy(p, E.row[j].chars, E.row[j].size);
+        p += E.row[j].size; 
+        *p = '\n';
+        p++;
+    }
+
+    return buf;
+}
+
 void openEditor(char *fileName) {
     free(E.fileName);
     E.fileName = strdup(fileName);
@@ -349,6 +372,21 @@ void openEditor(char *fileName) {
 
     free(line);
     fclose(fp);
+}
+
+void saveEditor() {
+    if (E.fileName == NULL) {
+        return;
+    }
+
+    int len;
+    char *buf = editorRowsToString(&len);
+
+    int fd = open(E.fileName, O_RDWR | O_CREAT, 0644);
+    ftruncate(fd, len);
+    write(fd, buf, len);
+    close(fd);
+    free(buf);
 }
 
 /*** append buffer ***/
@@ -560,10 +598,18 @@ void processEditorKeypress() {
     int c = readEditorKey();
 
     switch (c) {
+        case '\r':
+            /* TODO */
+            break;
+
         case CTRL_KEY('q'):
             write(STDOUT_FILENO, "\x1b[2J", 4);
             write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
+            break;
+
+        case CTRL_KEY('s'):
+            saveEditor();
             break;
 
         case HOME_KEY:
@@ -574,6 +620,12 @@ void processEditorKeypress() {
             if (E.cy < E.numRows) {
                 E.cx = E.row[E.cy].size;
             }
+            break;
+
+        case BACKSPACE:
+        case CTRL_KEY('h'):
+        case DEL_KEY:
+            /* TODO */
             break;
 
         case PAGE_UP:
@@ -600,6 +652,11 @@ void processEditorKeypress() {
         case ARROW_LEFT:
         case ARROW_RIGHT:
             moveEditorCursor(c);
+            break;
+
+        case CTRL_KEY('l'):
+        case '\x1b':
+            /* TODO */
             break;
 
         default:
