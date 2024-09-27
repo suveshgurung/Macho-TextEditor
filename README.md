@@ -27,4 +27,5 @@ This should open the existing file.
 
 
 
-[//]: # (This is the referencing of the links.) [Build Your Own Text Editor]: <https://viewsourcecode.org/snaptoken/kilo/index.html>
+[//]: # (This is the referencing of the links.)
+[Build Your Own Text Editor]: <https://viewsourcecode.org/snaptoken/kilo/index.html>
