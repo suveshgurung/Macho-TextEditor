@@ -476,12 +476,12 @@ void refreshEditorScreen() {
     abFree(&ab);
 }
 
-void setEditorStatusMessage(const char *fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
+void setEditorStatusMessage(const char *message, ...) {
+    va_list args;
+    va_start(args, message);
 
-    vsnprintf(E.statusMsg, sizeof(E.statusMsg), fmt, ap);
-    va_end(ap);
+    vsnprintf(E.statusMsg, sizeof(E.statusMsg), message, args);
+    va_end(args);
 
     E.statusMsgTime = time(NULL);
 }
