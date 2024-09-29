@@ -34,6 +34,7 @@
 
 #define MACHO_VERSION "0.0.1"
 #define MACHO_TAB_STOP 8
+#define MACHO_QUIT_NUM_TIMES 3
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 // constants definition of editor keys.
@@ -618,6 +619,7 @@ void moveEditorCursor(int key) {
 }
 
 void processEditorKeypress() {
+    static int quitTimes = MACHO_QUIT_NUM_TIMES;
     int c = readEditorKey();
 
     switch (c) {
@@ -626,6 +628,11 @@ void processEditorKeypress() {
             break;
 
         case CTRL_KEY('q'):
+            if (E.dirty && quitTimes > 0) {
+                setEditorStatusMessage("WARNING!!! File has unsaved changes. Press Ctrl-Q %d more times to quit.", quitTimes);
+                quitTimes--;
+                return;
+            }
             write(STDOUT_FILENO, "\x1b[2J", 4);
             write(STDOUT_FILENO, "\x1b[H", 3);
             exit(0);
@@ -686,6 +693,8 @@ void processEditorKeypress() {
             insertEditorChar(c);
             break;
     }
+
+    quitTimes = MACHO_QUIT_NUM_TIMES;
 }
 
 /*** init ***/
