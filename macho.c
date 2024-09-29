@@ -71,6 +71,7 @@ struct editorConfig {
     int screenColumns;  // terminal's number of columns.
     int numRows;        // number of rows of the text to be written.
     editorRow *row;      // stores the text and the size of the text of each line.
+    int dirty;      // tracks if any changes has been made to the file since it has been opened.
     char *fileName;     // stores the name of the current open file.
     char statusMsg[80];     //stores the status message.
     time_t statusMsgTime;   //stores the time at which the status message was written.
@@ -297,6 +298,7 @@ void appendEditorRow(char *s, size_t len) {
     updateEditorRow(&E.row[at]);
 
     E.numRows++;
+    E.dirty++;
 }
 
 void insertEditorRowCharacter(editorRow *row, int at, int c) {
@@ -314,6 +316,7 @@ void insertEditorRowCharacter(editorRow *row, int at, int c) {
     row->chars[at] = c;
 
     updateEditorRow(row);
+    E.dirty++;
 }
 
 /*** editor operations ***/
@@ -376,6 +379,7 @@ void openEditor(char *fileName) {
 
     free(line);
     fclose(fp);
+    E.dirty = 0;
 }
 
 void saveEditor() {
@@ -396,6 +400,7 @@ void saveEditor() {
             if (write(fd, buf, len) == len) {
                 close(fd);
                 free(buf);
+                E.dirty = 0;
                 setEditorStatusMessage("\"%s\" %dL, %dB written", E.fileName, E.numRows, len);
                 return;
             }
@@ -503,7 +508,7 @@ void drawEditorStatusBar(struct abuf *ab) {
     abAppend(ab, "\x1b[7m", 4);
 
     char status[80], rstatus[80];
-    int len = snprintf(status, sizeof(status), "%.20s - %d lines", E.fileName ? E.fileName : "[No Name]", E.numRows);
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines %s", E.fileName ? E.fileName : "[No Name]", E.numRows, E.dirty ? "(modified)" : "");
     int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", E.cy + 1, E.numRows);
     if (len > E.screenColumns) {
         len = E.screenColumns;
@@ -693,6 +698,7 @@ void initEditor() {
     E.colOffset = 0;
     E.numRows = 0;
     E.row = NULL;
+    E.dirty = 0;
     E.fileName = NULL;
     E.statusMsg[0] = '\0';
     E.statusMsgTime = 0;
