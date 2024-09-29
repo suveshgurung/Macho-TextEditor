@@ -302,6 +302,22 @@ void appendEditorRow(char *s, size_t len) {
     E.dirty++;
 }
 
+void freeEditorRow(editorRow *row) {
+    free(row->render);
+    free(row->chars);
+}
+
+void delEditorRow(int at) {
+    if (at < 0 || at >= E.numRows) {
+        return;
+    }
+
+    freeEditorRow(&E.row[at]);
+    memmove(&E.row[at], &E.row[at + 1], sizeof(editorRow) * (E.numRows - at - 1));
+    E.numRows--;
+    E.dirty++;
+}
+
 void insertEditorRowCharacter(editorRow *row, int at, int c) {
     if (at < 0 || at > row->size) {
         at = row->size;
@@ -320,6 +336,27 @@ void insertEditorRowCharacter(editorRow *row, int at, int c) {
     E.dirty++;
 }
 
+void appendEditorRowString(editorRow *row, char *s, int len) {
+    row->chars = (char *)realloc(row->chars, row->size + len + 1);
+    memcpy(&row->chars[row->size], s, len);
+    row->size += len;
+    row->chars[row->size] = '\0';
+    updateEditorRow(row);
+    E.dirty++;
+}
+
+void delEditorRowChar(editorRow *row, int at) {
+    if (at < 0 || at >= row->size) {
+        return;
+    }
+
+    memmove(&row->chars[at], &row->chars[at + 1], row->size - at);
+    row->size--;
+    updateEditorRow(row);
+
+    E.dirty++;
+}
+
 /*** editor operations ***/
 
 void insertEditorChar(int c) {
@@ -329,6 +366,28 @@ void insertEditorChar(int c) {
 
     insertEditorRowCharacter(&E.row[E.cy], E.cx, c);
     E.cx++;
+}
+
+void delEditorChar() {
+    if (E.cy == E.numRows) {
+        E.cy--;
+        E.cx = E.row[E.cy].size;
+        return;
+    }
+    if (E.cx == 0 && E.cy == 0) {
+        return;
+    }
+
+    editorRow *row = &E.row[E.cy];
+    if (E.cx > 0) {
+        delEditorRowChar(row, E.cx - 1);
+        E.cx--;
+    } else {
+        E.cx = E.row[E.cy - 1].size;
+        appendEditorRowString(&E.row[E.cy - 1], row->chars, row->size);
+        delEditorRow(E.cy);
+        E.cy--;
+    }
 }
 
 /*** file i/o ***/
@@ -655,7 +714,10 @@ void processEditorKeypress() {
         case BACKSPACE:
         case CTRL_KEY('h'):
         case DEL_KEY:
-            /* TODO */
+            if (c == DEL_KEY) {
+                moveEditorCursor(ARROW_RIGHT);
+            }
+            delEditorChar();
             break;
 
         case PAGE_UP:
