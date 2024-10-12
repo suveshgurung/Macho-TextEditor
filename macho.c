@@ -518,17 +518,42 @@ void saveEditor() {
 /*** find ***/
 
 void editorFindCallback(char *query, int key) {
+    static int lastMatch = -1;
+    static int direction = 1;
+
     if (key == '\x1b' || key == '\r') {
+        lastMatch = -1;
+        direction = 1;
         return;
+    } else if (key == ARROW_RIGHT || key == ARROW_DOWN) {
+        direction = 1;
+    } else if (key == ARROW_LEFT || key == ARROW_UP) {
+        direction = -1;
+    } else {
+        lastMatch = -1;
+        direction = 1;
     }
 
+    if (lastMatch == -1) {
+        direction = 1;
+    }
+
+    int current = lastMatch;
     int i;
     for (i = 0; i < E.numRows; i++) {
-        editorRow *row = &E.row[i];
+        current += direction;
+        if (current == -1) {
+            current = E.numRows - 1;
+        } else if (current == E.numRows) {
+            current = 0;
+        }
+
+        editorRow *row = &E.row[current];
         char *match = strstr(row->render, query);
 
         if (match) {
-            E.cy = i;
+            lastMatch = current;
+            E.cy = current;
             E.cx = editorRowRxToCx(row, match - row->render);
             E.rowOffset = E.numRows;
             break;
@@ -537,10 +562,20 @@ void editorFindCallback(char *query, int key) {
 }
 
 void editorFind() {
-    char *query = editorPrompt("Search: %s (ESC to cancel)", editorFindCallback);
+    int prevCx = E.cx;
+    int prevCy = E.cy;
+    int prevColOffset = E.colOffset;
+    int prevRowOffset = E.rowOffset;
+
+    char *query = editorPrompt("Search: %s (Use ESC/Arrows/Enter)", editorFindCallback);
 
     if (query) {
         free(query);
+    } else {
+        E.cx = prevCx;
+        E.cy = prevCy;
+        E.colOffset = prevColOffset;
+        E.rowOffset = prevRowOffset;
     }
 }
 
