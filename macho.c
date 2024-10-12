@@ -26,6 +26,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
+#include <ctype.h>
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
@@ -84,6 +85,8 @@ struct editorConfig E;
 /*** function prototypes ***/
 
 void setEditorStatusMessage(const char *message, ...);
+void refreshEditorScreen();
+char *editorPrompt(char *prompt);
 
 /*** terminal ***/
 
@@ -462,7 +465,7 @@ void openEditor(char *fileName) {
 
 void saveEditor() {
     if (E.fileName == NULL) {
-        return;
+        E.fileName = editorPrompt("Save as : %s");
     }
 
     int len;
@@ -654,6 +657,34 @@ void setEditorStatusMessage(const char *message, ...) {
 }
 
 /*** input ***/
+
+char *editorPrompt(char *prompt) {
+    size_t bufSize = 128;
+    char *buf = (char *)malloc(bufSize);
+
+    size_t bufLen = 0;
+    buf[0] = '\0';
+
+    while(1) {
+        setEditorStatusMessage(prompt, buf);
+        refreshEditorScreen();
+
+        int c = readEditorKey();
+        if (c == '\r') {
+            if (bufLen != 0) {
+                setEditorStatusMessage("");
+                return buf;
+            }
+        } else if (!iscntrl(c) && c < 128) {
+            if (bufLen == bufSize - 1) {
+                bufSize *= 2;
+                buf = (char *)realloc(buf, bufSize);
+            }
+            buf[bufLen++] = c;
+            buf[bufLen] = '\0';
+        }
+    }
+}
 
 void moveEditorCursor(int key) {
 
