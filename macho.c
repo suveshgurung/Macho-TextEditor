@@ -59,7 +59,15 @@ enum editorHighlight {
     HL_MATCH
 };
 
+#define HL_HIGHLIGHT_NUMBERS (1<<0)
+
 /*** variables ***/
+
+struct editorSyntax {
+    char *fileType;
+    char **fileMatch;
+    int flags;
+};
 
 // structure to store the editor text.
 typedef struct editorRow {
@@ -85,10 +93,25 @@ struct editorConfig {
     char *fileName;     // stores the name of the current open file.
     char statusMsg[80];     //stores the status message.
     time_t statusMsgTime;   //stores the time at which the status message was written.
+    struct editorSyntax *syntax;
     struct termios origTermios;     // struct to store the default (initial) config of the terminal.
 };
 
 struct editorConfig E;
+
+/*** filetypes ***/
+
+char *C_HL_extensions[] = { ".c" ,".h", ".cpp", NULL };
+
+struct editorSyntax HLDB[] = {
+    {
+        "c",
+        C_HL_extensions,
+        HL_HIGHLIGHT_NUMBERS
+    },
+};
+
+#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /*** function prototypes ***/
 
@@ -262,6 +285,10 @@ void updateEditorSyntax(editorRow *row) {
     row->highlight = (unsigned char *)realloc(row->highlight, row->rsize);
     memset(row->highlight, HL_NORMAL, row->rsize);
 
+    if (E.syntax == NULL) {
+        return;
+    }
+
     int prevSep = 1;
 
     int i = 0;
@@ -269,11 +296,13 @@ void updateEditorSyntax(editorRow *row) {
         char c = row->render[i];
         unsigned char prevHighlight = (i > 0) ? row->highlight[i - 1] : HL_NORMAL;
 
-        if ((isdigit(c) && (prevSep || prevHighlight == HL_NUMBER)) || (c == '.' && prevHighlight == HL_NUMBER)) {
-            row->highlight[i] = HL_NUMBER;
-            i++;
-            prevSep = 0;
-            continue;
+        if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
+            if ((isdigit(c) && (prevSep || prevHighlight == HL_NUMBER)) || (c == '.' && prevHighlight == HL_NUMBER)) {
+                row->highlight[i] = HL_NUMBER;
+                i++;
+                prevSep = 0;
+                continue;
+            }
         }
 
         prevSep = isSeparator(c);
@@ -289,6 +318,37 @@ int editorSyntaxToColor(int highlight) {
             return 34;
         default:
             return 37;
+    }
+}
+
+void editorSelectSyntaxHighlight() {
+    E.syntax = NULL;
+    if (E.fileName == NULL) {
+        return;
+    }
+
+    char *extension = strrchr(E.fileName, '.');
+
+    unsigned int j;
+    for (j = 0; j < HLDB_ENTRIES; j++) {
+        struct editorSyntax *s = &HLDB[j];
+        unsigned int i = 0;
+
+        while (s->fileMatch[i]) {
+            int isExtension = (s->fileMatch[i][0] == '.');
+
+            if ((isExtension && extension && !strcmp(extension, s->fileMatch[i])) || (!isExtension && strstr(E.fileName, s->fileMatch[i]))) {
+                E.syntax = s;
+
+                int fileRow;
+                for (fileRow = 0; fileRow < E.numRows; fileRow++) {
+                    updateEditorSyntax(&E.row[fileRow]);
+                }
+
+                return;
+            }
+            i++;
+        }
     }
 }
 
@@ -511,6 +571,8 @@ void openEditor(char *fileName) {
         die("strdup fileName");
     }
 
+    editorSelectSyntaxHighlight();
+
     FILE *fp = fopen(fileName, "r");
     if (!fp) {
         die("file open error");
@@ -540,6 +602,7 @@ void saveEditor() {
             setEditorStatusMessage("Save aborted...");
             return;
         }
+        editorSelectSyntaxHighlight();
     }
 
     int len;
@@ -767,7 +830,7 @@ void drawEditorStatusBar(struct abuf *ab) {
 
     char status[80], rstatus[80];
     int len = snprintf(status, sizeof(status), "%.20s - %d lines %s", E.fileName ? E.fileName : "[No Name]", E.numRows, E.dirty ? "(modified)" : "");
-    int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", E.cy + 1, E.numRows);
+    int rlen = snprintf(rstatus, sizeof(rstatus), "%s | %d/%d", E.syntax ? E.syntax->fileType : "no filetype", E.cy + 1, E.numRows);
     if (len > E.screenColumns) {
         len = E.screenColumns;
     }
@@ -1021,6 +1084,7 @@ void initEditor() {
     E.fileName = NULL;
     E.statusMsg[0] = '\0';
     E.statusMsgTime = 0;
+    E.syntax = NULL;
 
     if (getWindowSize(&E.screenRows, &E.screenColumns) == -1) {
         die("getWindowSize error");
