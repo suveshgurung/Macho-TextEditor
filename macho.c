@@ -9,7 +9,8 @@
  * \x1b[K -> clears the line from the cursor to the end of the line.
  * \x1b[?25l -> hide the cursor in the terminal.
  * \x1b[?25h -> show the cursor in the terminal.
- *
+ * \x1b[31m -> changes text color to red.
+ * \x1b[39m -> changes text color to default.
  */
 
 /*** includes ***/
@@ -52,6 +53,11 @@ enum editorKey {
     PAGE_DOWN
 };
 
+enum editorHighlight {
+    HL_NORMAL,
+    HL_NUMBER
+};
+
 /*** variables ***/
 
 // structure to store the editor text.
@@ -60,6 +66,7 @@ typedef struct editorRow {
     int rsize;
     char *chars;
     char *render;
+    unsigned char *highlight;
 } editorRow;
 
 // structure for the editor's configuration.
@@ -244,6 +251,29 @@ int getWindowSize(int *rows, int *cols) {
     }
 }
 
+/*** syntax highlighting ***/
+
+void updateEditorSyntax(editorRow *row) {
+    row->highlight = (unsigned char*)realloc(row->highlight, row->rsize);
+    memset(row->highlight, HL_NORMAL, row->rsize);
+
+    int i;
+    for(i = 0; i < row->rsize; i++) {
+        if (isdigit(row->render[i])) {
+            row->highlight[i] = HL_NUMBER;
+        }
+    }
+}
+
+int editorSyntaxToColor(int highlight) {
+    switch(highlight) {
+        case HL_NUMBER:
+            return 31;
+        default:
+            return 37;
+    }
+}
+
 /*** row operations ***/
 
 int editorRowCxToRx(editorRow *row, int cx) {
@@ -303,6 +333,8 @@ void updateEditorRow(editorRow *row) {
     }
     row->render[idx] = '\0';
     row->rsize = idx;
+
+    updateEditorSyntax(row);
 }
 
 void insertEditorRow(int at, char *s, size_t len) {
@@ -320,6 +352,7 @@ void insertEditorRow(int at, char *s, size_t len) {
 
     E.row[at].rsize = 0;
     E.row[at].render = NULL;
+    E.row[at].highlight = NULL;
     updateEditorRow(&E.row[at]);
 
     E.numRows++;
@@ -329,6 +362,7 @@ void insertEditorRow(int at, char *s, size_t len) {
 void freeEditorRow(editorRow *row) {
     free(row->render);
     free(row->chars);
+    free(row->highlight);
 }
 
 void delEditorRow(int at) {
@@ -663,7 +697,24 @@ void drawEditorRows(struct abuf *ab) {
                 len = E.screenColumns;
             }
 
-            abAppend(ab, &E.row[fileRow].render[E.colOffset], len);
+            char *c = &E.row[fileRow].render[E.colOffset];
+            unsigned char *highlight = &E.row[fileRow].highlight[E.colOffset];
+            int j;
+
+            for (j = 0; j < len; j++) {
+                if (highlight[j] == HL_NORMAL) {
+                    abAppend(ab, "\x1b[39m", 5);
+                    abAppend(ab, &c[j], 1);
+                } else {
+                    int color = editorSyntaxToColor(highlight[j]);
+                    char buf[16];
+
+                    int writeLen = snprintf(buf, sizeof(buf),   "\x1b[%dm", color);
+                    abAppend(ab, buf, writeLen);
+                    abAppend(ab, &c[j], 1);
+                }
+            }
+            abAppend(ab, "\x1b[39m", 5);
         }
 
         abAppend(ab, "\x1b[K", 3);
