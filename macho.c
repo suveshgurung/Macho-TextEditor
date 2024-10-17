@@ -55,7 +55,8 @@ enum editorKey {
 
 enum editorHighlight {
     HL_NORMAL,
-    HL_NUMBER
+    HL_NUMBER,
+    HL_MATCH
 };
 
 /*** variables ***/
@@ -269,6 +270,8 @@ int editorSyntaxToColor(int highlight) {
     switch(highlight) {
         case HL_NUMBER:
             return 31;
+        case HL_MATCH:
+            return 34;
         default:
             return 37;
     }
@@ -590,6 +593,8 @@ void editorFindCallback(char *query, int key) {
             E.cy = current;
             E.cx = editorRowRxToCx(row, match - row->render);
             E.rowOffset = E.numRows;
+
+            memset(&row->highlight[match - row->render], HL_MATCH, strlen(query));
             break;
         }
     }
@@ -699,18 +704,25 @@ void drawEditorRows(struct abuf *ab) {
 
             char *c = &E.row[fileRow].render[E.colOffset];
             unsigned char *highlight = &E.row[fileRow].highlight[E.colOffset];
+            int currColor = -1;
             int j;
 
             for (j = 0; j < len; j++) {
                 if (highlight[j] == HL_NORMAL) {
-                    abAppend(ab, "\x1b[39m", 5);
+                    if (currColor != -1) {
+                        abAppend(ab, "\x1b[39m", 5);
+                        currColor = -1;
+                    }
                     abAppend(ab, &c[j], 1);
                 } else {
                     int color = editorSyntaxToColor(highlight[j]);
-                    char buf[16];
+                    if (color != currColor) {
+                        currColor = color;
+                        char buf[16];
 
-                    int writeLen = snprintf(buf, sizeof(buf),   "\x1b[%dm", color);
-                    abAppend(ab, buf, writeLen);
+                        int writeLen = snprintf(buf, sizeof(buf),   "\x1b[%dm", color);
+                        abAppend(ab, buf, writeLen);
+                    }
                     abAppend(ab, &c[j], 1);
                 }
             }
