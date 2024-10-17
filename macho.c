@@ -254,15 +254,30 @@ int getWindowSize(int *rows, int *cols) {
 
 /*** syntax highlighting ***/
 
+int isSeparator(int c) {
+    return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
+}
+
 void updateEditorSyntax(editorRow *row) {
-    row->highlight = (unsigned char*)realloc(row->highlight, row->rsize);
+    row->highlight = (unsigned char *)realloc(row->highlight, row->rsize);
     memset(row->highlight, HL_NORMAL, row->rsize);
 
-    int i;
-    for(i = 0; i < row->rsize; i++) {
-        if (isdigit(row->render[i])) {
+    int prevSep = 1;
+
+    int i = 0;
+    while (i < row->rsize) {
+        char c = row->render[i];
+        unsigned char prevHighlight = (i > 0) ? row->highlight[i - 1] : HL_NORMAL;
+
+        if ((isdigit(c) && (prevSep || prevHighlight == HL_NUMBER)) || (c == '.' && prevHighlight == HL_NUMBER)) {
             row->highlight[i] = HL_NUMBER;
+            i++;
+            prevSep = 0;
+            continue;
         }
+
+        prevSep = isSeparator(c);
+        i++;
     }
 }
 
@@ -558,6 +573,15 @@ void editorFindCallback(char *query, int key) {
     static int lastMatch = -1;
     static int direction = 1;
 
+    static int savedHighlightLine;
+    static unsigned char *savedHighlight = NULL;
+
+    if (savedHighlight) {
+        memcpy(E.row[savedHighlightLine].highlight, savedHighlight, E.row[savedHighlightLine].rsize);
+        free(savedHighlight);
+        savedHighlight = NULL;
+    }
+
     if (key == '\x1b' || key == '\r') {
         lastMatch = -1;
         direction = 1;
@@ -593,6 +617,10 @@ void editorFindCallback(char *query, int key) {
             E.cy = current;
             E.cx = editorRowRxToCx(row, match - row->render);
             E.rowOffset = E.numRows;
+
+            savedHighlightLine = current;
+            savedHighlight = (unsigned char *)malloc(row->rsize);
+            memcpy(savedHighlight, row->highlight, row->rsize);
 
             memset(&row->highlight[match - row->render], HL_MATCH, strlen(query));
             break;
