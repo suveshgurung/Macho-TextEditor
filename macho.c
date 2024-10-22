@@ -56,6 +56,7 @@ enum editorKey {
 enum editorHighlight {
     HL_NORMAL,
     HL_COMMENT,
+    HL_MCOMMENT,
     HL_KEYWORD1,
     HL_KEYWORD2,
     HL_STRING,
@@ -73,16 +74,20 @@ struct editorSyntax {
     char **fileMatch;
     char **keywords;
     char *singleLineCommentStart;
+    char *multiLineCommentStart;
+    char *multiLineCommentEnd;
     int flags;
 };
 
 // structure to store the editor text.
 typedef struct editorRow {
+    int index;
     int size;
     int rsize;
     char *chars;
     char *render;
     unsigned char *highlight;
+    int highlightOpenComment;
 } editorRow;
 
 // structure for the editor's configuration.
@@ -118,7 +123,7 @@ struct editorSyntax HLDB[] = {
         "c",
         C_HL_extensions,
         C_HL_keywords,
-        "//",
+        "//", "/*", "*/",
         HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
     },
 };
@@ -304,20 +309,47 @@ void updateEditorSyntax(editorRow *row) {
     char **keywords = E.syntax->keywords;
 
     char *scs = E.syntax->singleLineCommentStart;
+    char *mcs = E.syntax->multiLineCommentStart;
+    char *mce = E.syntax->multiLineCommentEnd;
+
     int scsLen = scs ? strlen(scs) : 0;
+    int mcsLen = mcs ? strlen(mcs) : 0;
+    int mceLen = mce ? strlen(mce) : 0;
 
     int prevSep = 1;
     int inString = 0;
+    int inMultiLineComment = (row->index > 0 && E.row[row->index - 1].highlightOpenComment);
 
     int i = 0;
     while (i < row->rsize) {
         char c = row->render[i];
         unsigned char prevHighlight = (i > 0) ? row->highlight[i - 1] : HL_NORMAL;
 
-        if (scsLen && !inString) {
+        if (scsLen && !inString && !inString) {
             if (!strncmp(&row->render[i], scs, scsLen)) {
                 memset(&row->highlight[i], HL_COMMENT, row->rsize - i);
                 break;
+            }
+        }
+
+        if (mcsLen && mceLen && !inString) {
+            if (inMultiLineComment) {
+                row->highlight[i] = HL_MCOMMENT;
+                if (!strncmp(&row->render[i], mce, mceLen)) {
+                    memset(&row->highlight[i], HL_MCOMMENT, mceLen);
+                    i += mceLen;
+                    inMultiLineComment = 0;
+                    prevSep = 1;
+                    continue;
+                } else {
+                    i++;
+                    continue;
+                }
+            } else if (!strncmp(&row->render[i], mcs, mcsLen)) {
+                memset(&row->highlight[i], HL_MCOMMENT, mcsLen);
+                i += mcsLen;
+                inMultiLineComment = 1;
+                continue;
             }
         }
 
@@ -389,11 +421,18 @@ void updateEditorSyntax(editorRow *row) {
         prevSep = isSeparator(c);
         i++;
     }
+
+    int changed = (row->highlightOpenComment != inMultiLineComment);
+    row->highlightOpenComment = inMultiLineComment;
+    if (changed && row->index + 1 < E.numRows) {
+        updateEditorSyntax(&E.row[row->index + 1]);
+    }
 }
 
 int editorSyntaxToColor(int highlight) {
     switch(highlight) {
         case HL_COMMENT:
+        case HL_MCOMMENT:
             return 36;
         case HL_KEYWORD1:
             return 33;
@@ -511,6 +550,11 @@ void insertEditorRow(int at, char *s, size_t len) {
 
     E.row = (editorRow *)realloc(E.row, sizeof(editorRow) * (E.numRows + 1));
     memmove(&E.row[at + 1], &E.row[at], sizeof(editorRow) * (E.numRows - at));
+    for (int j = at + 1; j <= E.numRows; j++) {
+        E.row[j].index++;
+    }
+
+    E.row[at].index = at;
 
     E.row[at].size = len;
     E.row[at].chars = (char *)malloc(len + 1);
@@ -520,6 +564,7 @@ void insertEditorRow(int at, char *s, size_t len) {
     E.row[at].rsize = 0;
     E.row[at].render = NULL;
     E.row[at].highlight = NULL;
+    E.row[at].highlightOpenComment = 0;
     updateEditorRow(&E.row[at]);
 
     E.numRows++;
@@ -539,6 +584,10 @@ void delEditorRow(int at) {
 
     freeEditorRow(&E.row[at]);
     memmove(&E.row[at], &E.row[at + 1], sizeof(editorRow) * (E.numRows - at - 1));
+    for (int j = at; j <= E.numRows; j++) {
+        E.row[j].index--;
+    }
+
     E.numRows--;
     E.dirty++;
 }
